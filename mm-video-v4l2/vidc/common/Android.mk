@@ -16,6 +16,10 @@ libmm-vidc-def += -D_ANDROID_
 libmm-vidc-def += -Werror
 libmm-vidc-def += -D_ANDROID_ICS_
 
+ifeq ($(TARGET_USES_ION),true)
+libmm-vidc-def += -DUSE_ION
+endif
+
 # ---------------------------------------------------------------------------------
 # 			Make the Shared library (libOmxVidcCommon)
 # ---------------------------------------------------------------------------------
@@ -29,6 +33,7 @@ libmm-vidc-inc      += $(TOP)/hardware/libhardware/include
 libmm-vidc-inc      += $(TOP)/frameworks/native/headers/media_plugin
 libmm-vidc-inc      += $(TARGET_OUT_HEADERS)/qcom/display
 libmm-vidc-inc      += $(TOP)/system/memory/libion/include
+libmm-vidc-inc      += $(TOP)/system/memory/libion/kernel-headers
 
 
 LOCAL_MODULE                    := libOmxVidcCommon
