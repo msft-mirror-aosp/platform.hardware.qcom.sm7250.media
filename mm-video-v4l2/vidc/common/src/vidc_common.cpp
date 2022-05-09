@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2017-2019 The Linux Foundation. All rights reserved.
+Copyright (c) 2017-2020 The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -357,6 +357,9 @@ void get_v4l2_color_format_as_string(char * buf, int buf_len, unsigned long v4l2
         case V4L2_PIX_FMT_NV12:
             snprintf(buf, buf_len, "V4L2_PIX_FMT_NV12");
             break;
+        case V4L2_PIX_FMT_NV12_512:
+            snprintf(buf, buf_len, "V4L2_PIX_FMT_NV12_512");
+            break;
         case V4L2_PIX_FMT_NV12_UBWC:
             snprintf(buf, buf_len, "V4L2_PIX_FMT_NV12_UBWC");
             break;
@@ -409,4 +412,16 @@ IvfFrameHeader:: IvfFrameHeader(): filledLen(), timeStamp() {}
 IvfFrameHeader:: IvfFrameHeader(uint32_t filledLen, uint64_t timeStamp) :
     filledLen(filledLen),
     timeStamp(timeStamp) {
+}
+
+void do_sync_ioctl(int fd, struct dma_buf_sync* sync) {
+#ifdef USE_ION
+    int rc = ioctl(fd, DMA_BUF_IOCTL_SYNC, sync);
+    if (rc < 0) {
+        DEBUG_PRINT_ERROR("Failed DMA_BUF_IOCTL_SYNC");
+        return;
+    }
+#else
+    (void)fd, (void)sync;
+#endif
 }
