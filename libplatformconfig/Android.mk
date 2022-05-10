@@ -2,7 +2,6 @@ LOCAL_PATH := $(call my-dir)
 LOCAL_DIR_PATH:= $(call my-dir)
 include $(CLEAR_VARS)
 
-LOCAL_COPY_HEADERS_TO := libplatformconfig
 
 libplatformconfig-def := \
       -g0 -O3 -fpic \
@@ -15,7 +14,6 @@ libplatformconfig-def := \
 
 COMMON_CFLAGS := -O3
 
-include $(BUILD_COPY_HEADERS)
 
 LOCAL_CFLAGS := $(COMMON_CFLAGS) $(libplatformconfig-def)
 
@@ -54,6 +52,9 @@ endif
 ####################
 
 LOCAL_MODULE := libplatformconfig
+LOCAL_LICENSE_KINDS := SPDX-license-identifier-BSD
+LOCAL_LICENSE_CONDITIONS := notice
+LOCAL_NOTICE_FILE := $(LOCAL_PATH)/../NOTICE
 LOCAL_VENDOR_MODULE := true
 
 include $(BUILD_SHARED_LIBRARY)
