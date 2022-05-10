@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2019, The Linux Foundation. All rights reserved.
+Copyright (c) 2010-2020, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -61,6 +61,15 @@ void venc_dev::venc_get_consumer_usage(OMX_U32* usage)
             m_codec == OMX_VIDEO_CodingImageHEIC) {
         *usage &= ~GRALLOC_USAGE_PRIVATE_ALLOC_UBWC;
         DEBUG_PRINT_INFO("Clear UBWC consumer usage bits as 8-bit linear color requested");
+    }
+
+    if (venc_handle->is_flip_conv_needed(NULL))
+        *usage = *usage | GRALLOC_USAGE_SW_READ_OFTEN;
+
+    if (m_codec == OMX_VIDEO_CodingImageHEIC) {
+        DEBUG_PRINT_INFO("Clear UBWC and set HEIF consumer usage bit");
+        *usage &= ~GRALLOC_USAGE_PRIVATE_ALLOC_UBWC;
+        *usage |= GRALLOC_USAGE_PRIVATE_HEIF_VIDEO;
     }
 
     DEBUG_PRINT_INFO("venc_get_consumer_usage 0x%x", *usage);
@@ -129,10 +138,18 @@ bool venc_dev::venc_set_config(void *configData, OMX_INDEXTYPE index)
                 OMX_CONFIG_MIRRORTYPE *mirror = (OMX_CONFIG_MIRRORTYPE*) configData;
                 DEBUG_PRINT_LOW("venc_set_param: OMX_IndexConfigCommonMirror");
 
-                if (venc_set_mirror(mirror->eMirror) == false) {
+                if (!venc_handle->m_no_vpss && venc_set_mirror(mirror->eMirror) == false) {
                     DEBUG_PRINT_ERROR("ERROR: Setting OMX_IndexConfigCommonMirror failed");
                     return false;
+                } else if(venc_handle->m_no_vpss) {
+                    if ((venc_handle->m_nOperatingRate >> 16) <= 30) {
+                        venc_handle->initFastCV();
+                    } else {
+                        DEBUG_PRINT_ERROR("ERROR: Flip not supported fps %u",
+                                venc_handle->m_nOperatingRate >> 16);
+                    }
                 }
+
                 break;
             }
         case OMX_IndexConfigCommonRotate:
@@ -144,7 +161,7 @@ bool venc_dev::venc_set_config(void *configData, OMX_INDEXTYPE index)
                    return false;
                 }
 
-                if (venc_handle->m_c2d_rotation) {
+                if (venc_handle->m_no_vpss) {
                     if (venc_prepare_c2d_rotation(config_rotation->nRotation) == false) {
                         DEBUG_PRINT_ERROR("ERROR: venc_prepare_c2d_rotation failed");
                         return false;
@@ -387,6 +404,12 @@ bool venc_dev::venc_set_config(void *configData, OMX_INDEXTYPE index)
                     case ColorAspects::TransferSRGB:
                         transfer_chars = MSM_VIDC_TRANSFER_SRGB;
                         break;
+                    case ColorAspects::TransferST2084:
+                        transfer_chars = MSM_VIDC_TRANSFER_SMPTE_ST2084;
+                        break;
+                    case ColorAspects::TransferHLG:
+                        transfer_chars = MSM_VIDC_TRANSFER_HLG;
+                        break;
                     default:
                         //params->sAspects.mTransfer = ColorAspects::TransferSMPTE170M;
                         transfer_chars = MSM_VIDC_TRANSFER_601_6_625;
@@ -451,6 +474,14 @@ bool venc_dev::venc_set_config(void *configData, OMX_INDEXTYPE index)
             }
             break;
         }
+        case OMX_QTIIndexConfigContentAdaptiveCoding:
+           {
+                if(!venc_set_bitrate_savings_mode(*(OMX_U32*) configData)) {
+                    DEBUG_PRINT_LOW("Failed to set Bitrate Savings Mode");
+                    return false;
+                }
+                break;
+           }
         default:
             DEBUG_PRINT_ERROR("Unsupported config index = %u", index);
             break;
@@ -736,7 +767,10 @@ bool venc_dev::venc_set_param(void *paramData, OMX_INDEXTYPE index)
                                 pParam->eProfile);
                         return false;
                     }
-
+                    if(!venc_set_level(pParam->eLevel)) {
+                        DEBUG_PRINT_ERROR("ERROR: Unsuccessful in updating level");
+                        return false;
+                    }
                     if (set_nP_frames(pParam->nPFrames) == false ||
                         (pParam->nBFrames && set_nB_frames(pParam->nBFrames) == false)) {
                         DEBUG_PRINT_ERROR("ERROR: Request for setting intra period failed");
@@ -1246,6 +1280,17 @@ bool venc_dev::venc_set_profile(OMX_U32 eProfile)
         return false;
     }
 
+    if (m_disable_hdr & ENC_HDR_DISABLE_FLAG) {
+        if (m_sVenc_cfg.codectype == V4L2_PIX_FMT_HEVC) {
+            if (eProfile == OMX_VIDEO_HEVCProfileMain10 ||
+                eProfile == OMX_VIDEO_HEVCProfileMain10HDR10 ||
+                eProfile == OMX_VIDEO_HEVCProfileMain10HDR10Plus) {
+                DEBUG_PRINT_ERROR("%s: HDR profile unsupported", __FUNCTION__);
+                return false;
+            }
+        }
+    }
+
     if (!profile_level_converter::convert_omx_profile_to_v4l2(m_sVenc_cfg.codectype, eProfile, &control.value)) {
         DEBUG_PRINT_ERROR("Cannot find v4l2 profile for OMX profile : %d Codec : %lu ",
                           eProfile, m_sVenc_cfg.codectype);
@@ -1590,6 +1635,23 @@ unsigned long venc_dev::venc_get_codectype(OMX_VIDEO_CODINGTYPE eCompressionForm
     return codectype;
 }
 
+bool venc_dev::venc_set_bitrate_savings_mode(OMX_U32 bitrateSavingEnable)
+{
+    struct v4l2_control control;
+    int rc = 0;
+
+    DEBUG_PRINT_LOW("Set bitrate savings %d", bitrateSavingEnable);
+    control.id = V4L2_CID_MPEG_VIDC_VENC_BITRATE_SAVINGS;
+    control.value = bitrateSavingEnable;
+    rc = ioctl(m_nDriver_fd, VIDIOC_S_CTRL, &control);
+    if (rc) {
+        DEBUG_PRINT_HIGH("Non-Fatal: Request to set bitrate savings failed");
+    }
+    mBitrateSavingsEnable = bitrateSavingEnable;
+
+    return true;
+}
+
 bool venc_dev::venc_set_ratectrl_cfg(OMX_VIDEO_CONTROLRATETYPE eControlRate)
 {
     bool status = true;
@@ -1651,13 +1713,7 @@ bool venc_dev::venc_set_ratectrl_cfg(OMX_VIDEO_CONTROLRATETYPE eControlRate)
         rate_ctrl.rcmode = control.value;
     }
 
-    DEBUG_PRINT_LOW("Set bitrate savings %d", mBitrateSavingsEnable);
-    control.id = V4L2_CID_MPEG_VIDC_VENC_BITRATE_SAVINGS;
-    control.value = mBitrateSavingsEnable;
-    rc = ioctl(m_nDriver_fd, VIDIOC_S_CTRL, &control);
-    if (rc) {
-        DEBUG_PRINT_HIGH("Non-Fatal: Request to set bitrate savings failed");
-    }
+    venc_set_bitrate_savings_mode(mBitrateSavingsEnable);
 
     return status;
 }

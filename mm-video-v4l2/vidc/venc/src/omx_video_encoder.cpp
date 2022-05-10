@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2010-2019, The Linux Foundation. All rights reserved.
+Copyright (c) 2010-2020 The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -187,8 +187,8 @@ omx_venc::omx_venc()
     }
     m_perf_control.perf_lock_acquire();
 
-    Platform::Config::getInt32(Platform::vidc_c2d_rotation,
-            (int32_t *)&m_c2d_rotation, 0);
+    Platform::Config::getInt32(Platform::vidc_no_vpss,
+            (int32_t *)&m_no_vpss, 0);
 }
 
 omx_venc::~omx_venc()
@@ -225,6 +225,7 @@ OMX_ERRORTYPE omx_venc::component_init(OMX_STRING role)
 
     OMX_VIDEO_CODINGTYPE codec_type;
 
+    property_get("ro.board.platform", m_platform_name, "0");
     DEBUG_PRINT_HIGH("omx_venc(): Inside component_init()");
     // Copy the role information which provides the decoder m_nkind
     strlcpy((char *)m_nkind,role,OMX_MAX_STRINGNAME_SIZE);
@@ -241,6 +242,15 @@ OMX_ERRORTYPE omx_venc::component_init(OMX_STRING role)
         secure_session = true;
     } else if (!strncmp((char *)m_nkind, "OMX.qcom.video.encoder.vp8",    \
                 OMX_MAX_STRINGNAME_SIZE)) {
+        char version[PROP_VALUE_MAX] = {0};
+        if (!strncmp(m_platform_name, "lito", 4))
+            if (property_get("vendor.media.target.version", version, "0") &&
+                    ((atoi(version) == 2) || (atoi(version) == 3))) {
+                //sku version, VP8 is disabled on lagoon
+                DEBUG_PRINT_ERROR("VP8 unsupported on lagoon");
+                eRet = OMX_ErrorInvalidComponentName;
+                return eRet;
+            }
         strlcpy((char *)m_cRole, "video_encoder.vp8",OMX_MAX_STRINGNAME_SIZE);
         codec_type = OMX_VIDEO_CodingVP8;
     } else if (!strncmp((char *)m_nkind, "OMX.qcom.video.encoder.hevc",    \
@@ -2031,6 +2041,15 @@ OMX_ERRORTYPE  omx_venc::set_config(OMX_IN OMX_HANDLETYPE      hComp,
                 break;
 
             }
+        case OMX_QTIIndexConfigContentAdaptiveCoding:
+           {
+                OMX_U32* bitrateSavingsMode = (OMX_U32*) configData;
+                if (!handle->venc_set_config(bitrateSavingsMode, (OMX_INDEXTYPE)OMX_QTIIndexConfigContentAdaptiveCoding)) {
+                    DEBUG_PRINT_ERROR("Failed to set OMX_QTIIndexConfigContentAdaptiveCoding");
+                    return OMX_ErrorUnsupportedSetting;
+                }
+                break;
+           }
         default:
             DEBUG_PRINT_ERROR("ERROR: unsupported index %d", (int) configIndex);
             break;
@@ -2215,6 +2234,16 @@ bool omx_venc::dev_empty_buf(void *buffer, void *pmem_data_buf,unsigned index,un
 bool omx_venc::dev_fill_buf(void *buffer, void *pmem_data_buf,unsigned index,unsigned fd)
 {
     return handle->venc_fill_buf(buffer, pmem_data_buf,index,fd);
+}
+
+bool omx_venc::dev_is_meta_mode()
+{
+    return handle->venc_get_buffer_mode();;
+}
+
+bool omx_venc::dev_is_avtimer_needed()
+{
+    return handle->venc_is_avtimer_needed();
 }
 
 bool omx_venc::dev_get_seq_hdr(void *buffer, unsigned size, unsigned *hdrlen)
@@ -2415,6 +2444,7 @@ int omx_venc::async_message_process (void *context, void* message)
                     OMX_COMPONENT_GENERATE_START_DONE);
             break;
         case VEN_MSG_STOP:
+            omx->is_stop_in_progress = true;
             omx->post_event (0,m_sVenc_msg->statuscode,\
                     OMX_COMPONENT_GENERATE_STOP_DONE);
             break;
@@ -2468,7 +2498,6 @@ int omx_venc::async_message_process (void *context, void* message)
                     omxhdr->nFilledLen = m_sVenc_msg->buf.len;
                     omxhdr->nOffset = m_sVenc_msg->buf.offset;
                     omxhdr->nTimeStamp = m_sVenc_msg->buf.timestamp;
-                    DEBUG_PRINT_LOW("o/p TS = %u", (unsigned int)m_sVenc_msg->buf.timestamp);
                     omxhdr->nFlags = m_sVenc_msg->buf.flags;
 
                     /*Use buffer case*/
