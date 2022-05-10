@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -55,6 +55,7 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define ENABLE_I_QP 0x1
 #define ENABLE_P_QP 0x2
 #define ENABLE_B_QP 0x4
+#define ENC_HDR_DISABLE_FLAG 0x2
 
 #define OMX_VIDEO_LEVEL_UNKNOWN 0
 
@@ -73,6 +74,8 @@ IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define REQUEST_LINEAR_COLOR_8_BIT   0x1
 #define REQUEST_LINEAR_COLOR_10_BIT  0x2
 #define REQUEST_LINEAR_COLOR_ALL     (REQUEST_LINEAR_COLOR_8_BIT | REQUEST_LINEAR_COLOR_10_BIT)
+
+#define VENC_QUALITY_BOOST_BITRATE_THRESHOLD 2000000
 
 enum hier_type {
     HIER_NONE = 0x0,
@@ -311,6 +314,8 @@ class venc_dev
         bool venc_free_buf(void*, unsigned);
         bool venc_empty_buf(void *, void *,unsigned,unsigned);
         bool venc_fill_buf(void *, void *,unsigned,unsigned);
+        bool venc_get_buffer_mode();
+        bool venc_is_avtimer_needed();
         bool venc_get_buf_req(OMX_U32 *,OMX_U32 *,
                 OMX_U32 *,OMX_U32);
         bool venc_set_buf_req(OMX_U32 *,OMX_U32 *,
@@ -342,6 +347,7 @@ class venc_dev
         OMX_ERRORTYPE venc_set_bitrate_ratios();
         bool venc_validate_temporal_extn(OMX_VIDEO_PARAM_ANDROID_TEMPORALLAYERINGTYPE &temporalSettings);
         bool venc_get_output_log_flag();
+        int venc_cvp_log_buffers(const char *metadataName, uint32_t buffer_len, uint8_t *buf);
         int venc_output_log_buffers(const char *buffer_addr, int buffer_len, uint64_t timestamp);
         int venc_input_log_buffers(OMX_BUFFERHEADERTYPE *buffer, int fd, int plane_offset,
                         unsigned long inputformat, bool interlaced);
@@ -377,6 +383,7 @@ class venc_dev
         bool is_auto_blur_disabled;
         bool csc_enable;
         bool m_bDimensionsNeedFlip;
+        int32_t m_disable_hdr;
         unsigned long get_media_colorformat(unsigned long);
 
     private:
@@ -422,6 +429,7 @@ class venc_dev
         bool set_nP_frames(unsigned long nPframes);
         bool venc_set_target_bitrate(OMX_U32 nTargetBitrate);
         bool venc_set_ratectrl_cfg(OMX_VIDEO_CONTROLRATETYPE eControlRate);
+        bool venc_set_bitrate_savings_mode(OMX_U32 bitrateSavingEnable);
         bool venc_set_session_qp_range(OMX_QCOM_VIDEO_PARAM_IPB_QPRANGETYPE *qp_range);
         bool venc_set_encode_framerate(OMX_U32 encode_framerate);
         bool venc_set_intra_vop_refresh(OMX_BOOL intra_vop_refresh);
@@ -469,6 +477,8 @@ class venc_dev
         bool venc_get_cvp_metadata(private_handle_t *handle, struct v4l2_buffer *buf);
         bool venc_set_cvp_skipratio_controls();
         bool venc_superframe_enable(private_handle_t *handle);
+        void venc_set_quality_boost(OMX_BOOL c2d_enable);
+        bool reconfigure_avc_param(OMX_VIDEO_PARAM_AVCTYPE *param);
 
         OMX_U32 pmem_free();
         OMX_U32 pmem_allocate(OMX_U32 size, OMX_U32 alignment, OMX_U32 count);
@@ -525,7 +535,9 @@ class venc_dev
         bool venc_set_hdr_info(const MasteringDisplay&, const ContentLightLevel&);
         bool mIsGridset;
         OMX_U32 mUseLinearColorFormat;
-        bool mBitrateSavingsEnable;
+        OMX_U32 mBitrateSavingsEnable;
+        bool mQualityBoostRequested;
+        bool mQualityBoostEligible;
 
         union dynamicConfigData {
             OMX_VIDEO_CONFIG_BITRATETYPE bitrate;
