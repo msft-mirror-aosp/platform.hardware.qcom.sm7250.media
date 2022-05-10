@@ -1,5 +1,5 @@
 /*--------------------------------------------------------------------------
-Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+Copyright (c) 2018-2020, 2021 The Linux Foundation. All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
@@ -44,15 +44,14 @@ omx_core_cb_type core[] =
     OMX_REGISTRY_ENTRY("OMX.qcom.video.decoder.avc.secure", "libOmxVdec.so", "video_decoder.avc"),
     OMX_REGISTRY_ENTRY("OMX.qcom.video.decoder.hevc", "libOmxVdec.so", "video_decoder.hevc"),
     OMX_REGISTRY_ENTRY("OMX.qcom.video.decoder.hevc.secure", "libOmxVdec.so", "video_decoder.hevc"),
-    OMX_REGISTRY_ENTRY("OMX.qcom.video.decoder.vp8", "libOmxVdec.so", "video_decoder.vp8"),
     OMX_REGISTRY_ENTRY("OMX.qcom.video.decoder.vp9", "libOmxVdec.so", "video_decoder.vp9"),
     OMX_REGISTRY_ENTRY("OMX.qcom.video.decoder.vp9.secure", "libOmxVdec.so", "video_decoder.vp9"),
     OMX_REGISTRY_ENTRY("OMX.qcom.video.encoder.avc", "libOmxVenc.so", "video_encoder.avc"),
     OMX_REGISTRY_ENTRY("OMX.qcom.video.encoder.avc.secure", "libOmxVenc.so", "video_encoder.avc"),
-    OMX_REGISTRY_ENTRY("OMX.qcom.video.encoder.vp8", "libOmxVenc.so", "video_encoder.vp8"),
     OMX_REGISTRY_ENTRY("OMX.qcom.video.encoder.hevc", "libOmxVenc.so", "video_encoder.hevc"),
     OMX_REGISTRY_ENTRY("OMX.qcom.video.encoder.hevc.cq", "libOmxVenc.so", "video_encoder.hevc"),
     OMX_REGISTRY_ENTRY("OMX.qcom.video.encoder.hevc.secure", "libOmxVenc.so", "video_encoder.hevc"),
     OMX_REGISTRY_ENTRY("OMX.qcom.video.encoder.heic", "libOmxVenc.so", "image_encoder.heic"),
 };
 const unsigned int SIZE_OF_CORE = sizeof(core) / sizeof(omx_core_cb_type);
+omx_core_cb_type component[SIZE_OF_CORE];

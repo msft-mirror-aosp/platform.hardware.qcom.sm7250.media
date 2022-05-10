@@ -16,15 +16,20 @@ endif
 #             Figure out the targets
 #===============================================================================
 
-ifeq ($(filter $(TARGET_BOARD_PLATFORM), kona lito),$(TARGET_BOARD_PLATFORM))
-OMXCORE_CFLAGS += -D_KONA_
+MPEGH_TARGET_LIST := kona lito bengal
+ifneq (,$(call is-board-platform-in-list2, $(MPEGH_TARGET_LIST)))
+OMXCORE_CFLAGS += -DAUDIO_MPEGH_ENABLED
+endif
+
+ifeq ($(filter $(TARGET_BOARD_PLATFORM), bengal),$(TARGET_BOARD_PLATFORM))
+OMXCORE_CFLAGS += -D_BENGAL_
 else ifeq ($(filter $(TARGET_BOARD_PLATFORM), $(MSMSTEPPE)),$(TARGET_BOARD_PLATFORM))
 OMXCORE_CFLAGS += -D_STEPPE_
 else
 OMXCORE_CFLAGS += -D_DEFAULT_
 endif
 
-ifeq ($(call is-platform-sdk-version-at-least,27),true) # O-MR1
+ifdef IS_AT_LEAST_OPM1 # O-MR1
 OMXCORE_CFLAGS += -D_ANDROID_O_MR1_DIVX_CHANGES
 endif
 
@@ -84,10 +89,13 @@ endif
 
 LOCAL_PRELINK_MODULE    := false
 LOCAL_MODULE            := libOmxCore
+LOCAL_LICENSE_KINDS     := SPDX-license-identifier-BSD SPDX-license-identifier-MIT
+LOCAL_LICENSE_CONDITIONS := notice
+LOCAL_NOTICE_FILE       := $(LOCAL_PATH)/../NOTICE
 LOCAL_MODULE_TAGS       := optional
 LOCAL_VENDOR_MODULE     := true
 LOCAL_SHARED_LIBRARIES  := liblog libdl libcutils
-ifeq ($(call is-board-platform-in-list, $(MSM_VIDC_TARGET_LIST)),true)
+ifneq (,$(call is-board-platform-in-list2, $(MSM_VIDC_TARGET_LIST)))
 ifeq ($(VIDC_STUB_HAL),false)
 LOCAL_SHARED_LIBRARIES  += libplatformconfig
 endif
@@ -121,10 +129,13 @@ LOCAL_EXPORT_HEADER_LIBRARY_HEADERS := libomxcore_headers
 
 LOCAL_PRELINK_MODULE    := false
 LOCAL_MODULE            := libmm-omxcore
+LOCAL_LICENSE_KINDS     := SPDX-license-identifier-BSD SPDX-license-identifier-MIT
+LOCAL_LICENSE_CONDITIONS := notice
+LOCAL_NOTICE_FILE       := $(LOCAL_PATH)/../NOTICE
 LOCAL_MODULE_TAGS       := optional
 LOCAL_VENDOR_MODULE     := true
 LOCAL_SHARED_LIBRARIES  := liblog libdl libcutils
-ifeq ($(call is-board-platform-in-list, $(MSM_VIDC_TARGET_LIST)),true)
+ifneq (,$(call is-board-platform-in-list2, $(MSM_VIDC_TARGET_LIST)))
 ifeq ($(VIDC_STUB_HAL),false)
 LOCAL_SHARED_LIBRARIES  += libplatformconfig
 endif
@@ -152,6 +163,9 @@ include $(BUILD_SHARED_LIBRARY)
 include $(CLEAR_VARS)
 
 LOCAL_MODULE := libomxcore_headers
+LOCAL_LICENSE_KINDS := SPDX-license-identifier-BSD SPDX-license-identifier-MIT
+LOCAL_LICENSE_CONDITIONS := notice
+LOCAL_NOTICE_FILE := $(LOCAL_PATH)/../NOTICE
 LOCAL_EXPORT_C_INCLUDE_DIRS := $(LOCAL_PATH)/inc
 LOCAL_VENDOR_MODULE := true
 
